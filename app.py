@@ -1,7 +1,7 @@
-from flask import send_from_directory
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
-import datetime
+from datetime import datetime, timezone  # Import timezone
+import json
 
 app = Flask(__name__)
 
@@ -14,46 +14,52 @@ events_collection = db['events']
 @app.route('/webhook', methods=['POST'])
 def github_webhook():
     if request.method == 'POST':
-        data = request.json
+        try:
+            data = request.get_json()
+            if data is None:
+                data = json.loads(request.data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
         action_type = request.headers.get('X-GitHub-Event')
 
         # Handle PUSH event
         if action_type == 'push':
             event = {
-                "request_id": data['after'],  # Git commit hash
-                "author": data['pusher']['name'],
+                "request_id": data.get('after'),  # Git commit hash
+                "author": data.get('pusher', {}).get('name'),
                 "action": "PUSH",
                 "from_branch": None,  # Not needed for PUSH
-                "to_branch": data['ref'].split('/')[-1],
-                "timestamp": datetime.datetime.utcnow().isoformat()
+                "to_branch": data.get('ref', '').split('/')[-1],
+                "timestamp": datetime.now(timezone.utc).isoformat()  # Updated to use timezone-aware datetime
             }
             events_collection.insert_one(event)
 
         # Handle PULL_REQUEST event
         elif action_type == 'pull_request':
-            pr_action = data['action']
+            pr_action = data.get('action')
             if pr_action in ["opened", "closed"]:
                 event = {
-                    "request_id": data['pull_request']['id'],
-                    "author": data['pull_request']['user']['login'],
+                    "request_id": data.get('pull_request', {}).get('id'),
+                    "author": data.get('pull_request', {}).get('user', {}).get('login'),
                     "action": "PULL_REQUEST",
-                    "from_branch": data['pull_request']['head']['ref'],
-                    "to_branch": data['pull_request']['base']['ref'],
-                    "timestamp": datetime.datetime.utcnow().isoformat()
+                    "from_branch": data.get('pull_request', {}).get('head', {}).get('ref'),
+                    "to_branch": data.get('pull_request', {}).get('base', {}).get('ref'),
+                    "timestamp": datetime.now(timezone.utc).isoformat()  # Updated to use timezone-aware datetime
                 }
                 events_collection.insert_one(event)
 
-        # Handle MERGE event
-        elif action_type == 'pull_request' and data['pull_request']['merged']:
-            event = {
-                "request_id": data['pull_request']['id'],
-                "author": data['pull_request']['user']['login'],
-                "action": "MERGE",
-                "from_branch": data['pull_request']['head']['ref'],
-                "to_branch": data['pull_request']['base']['ref'],
-                "timestamp": datetime.datetime.utcnow().isoformat()
-            }
-            events_collection.insert_one(event)
+            # Handle MERGE event within PULL_REQUEST event
+            if data.get('pull_request', {}).get('merged', False):
+                event = {
+                    "request_id": data.get('pull_request', {}).get('id'),
+                    "author": data.get('pull_request', {}).get('user', {}).get('login'),
+                    "action": "MERGE",
+                    "from_branch": data.get('pull_request', {}).get('head', {}).get('ref'),
+                    "to_branch": data.get('pull_request', {}).get('base', {}).get('ref'),
+                    "timestamp": datetime.now(timezone.utc).isoformat()  # Updated to use timezone-aware datetime
+                }
+                events_collection.insert_one(event)
 
         return jsonify({"status": "success"}), 200
 
