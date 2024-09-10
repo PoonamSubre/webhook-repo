@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Webhook Events</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #events { margin-top: 20px; }
+        .event { margin-bottom: 10px; }
+    </style>
+    <script>
+        // Function to fetch and display events
+        function fetchEvents() {
+            fetch('/events')
+                .then(response => response.json())
+                .then(data => {
+                    const eventDiv = document.getElementById('events');
+                    eventDiv.innerHTML = '';  // Clear the existing content
+                    data.forEach(event => {
+                        let eventText = '';
+                        if (event.action === 'PUSH') {
+                            eventText = `${event.author} pushed to ${event.to_branch} on ${new Date(event.timestamp).toUTCString()}`;
+                        } else if (event.action === 'PULL_REQUEST') {
+                            eventText = `${event.author} submitted a pull request from ${event.from_branch} to ${event.to_branch} on ${new Date(event.timestamp).toUTCString()}`;
+                        } else if (event.action === 'MERGE') {
+                            eventText = `${event.author} merged branch ${event.from_branch} to ${event.to_branch} on ${new Date(event.timestamp).toUTCString()}`;
+                        }
+                        const p = document.createElement('p');
+                        p.className = 'event';
+                        p.textContent = eventText;
+                        eventDiv.appendChild(p);
+                    });
+                });
+        }
+
+        // Poll every 15 seconds
+        setInterval(fetchEvents, 15000);
+        window.onload = fetchEvents;  // Fetch events on page load
+    </script>
+</head>
+<body>
+    <h1>Latest GitHub Events</h1>
+    <div id="events"></div>
+</body>
+</html>
