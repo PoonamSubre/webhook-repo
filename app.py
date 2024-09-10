@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
-from datetime import datetime, timezone  # Import timezone
+from datetime import datetime, timezone
 import json
 
 app = Flask(__name__)
@@ -9,6 +9,7 @@ app = Flask(__name__)
 client = MongoClient('mongodb://localhost:27017/')
 db = client['github_events']
 events_collection = db['events']
+
 
 # Webhook receiver route for GitHub
 @app.route('/webhook', methods=['POST'])
@@ -29,13 +30,12 @@ def github_webhook():
                 "request_id": data.get('after'),  # Git commit hash
                 "author": data.get('pusher', {}).get('name'),
                 "action": "PUSH",
-                "from_branch": None,  # Not needed for PUSH
+                "from_branch": None,  
                 "to_branch": data.get('ref', '').split('/')[-1],
-                "timestamp": datetime.now(timezone.utc).isoformat()  # Updated to use timezone-aware datetime
+                "timestamp": datetime.now(timezone.utc).isoformat()  # 
             }
             events_collection.insert_one(event)
 
-        # Handle PULL_REQUEST event
         elif action_type == 'pull_request':
             pr_action = data.get('action')
             if pr_action in ["opened", "closed"]:
@@ -45,7 +45,7 @@ def github_webhook():
                     "action": "PULL_REQUEST",
                     "from_branch": data.get('pull_request', {}).get('head', {}).get('ref'),
                     "to_branch": data.get('pull_request', {}).get('base', {}).get('ref'),
-                    "timestamp": datetime.now(timezone.utc).isoformat()  # Updated to use timezone-aware datetime
+                    "timestamp": datetime.now(timezone.utc).isoformat()  # Use timezone-aware datetime
                 }
                 events_collection.insert_one(event)
 
@@ -57,7 +57,7 @@ def github_webhook():
                     "action": "MERGE",
                     "from_branch": data.get('pull_request', {}).get('head', {}).get('ref'),
                     "to_branch": data.get('pull_request', {}).get('base', {}).get('ref'),
-                    "timestamp": datetime.now(timezone.utc).isoformat()  # Updated to use timezone-aware datetime
+                    "timestamp": datetime.now(timezone.utc).isoformat()  # Use timezone-aware datetime
                 }
                 events_collection.insert_one(event)
 
@@ -66,10 +66,13 @@ def github_webhook():
 # Fetch latest events for the UI
 @app.route('/events', methods=['GET'])
 def get_events():
-    events = list(events_collection.find().sort('timestamp', -1).limit(10))  # Get the latest 10 events
-    for event in events:
-        event['_id'] = str(event['_id'])  # Convert ObjectId to string
-    return jsonify(events), 200
+    try:
+        events = list(events_collection.find().sort('timestamp', -1).limit(10))
+        for event in events:
+            event['_id'] = str(event['_id'])  # Convert ObjectId to string
+        return jsonify(events), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Serve the frontend UI
 @app.route('/')
