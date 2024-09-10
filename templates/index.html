@@ -11,29 +11,46 @@
         .event { margin-bottom: 10px; }
     </style>
     <script>
-        // Function to fetch and display events
+        function formatDate(isoDateString) {
+            const options = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' };
+            return new Date(isoDateString).toLocaleDateString('en-US', options).replace(',', '');
+        }
+        
         function fetchEvents() {
             fetch('/events')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Fetched events:', data);
                     const eventDiv = document.getElementById('events');
                     eventDiv.innerHTML = '';  // Clear the existing content
                     data.forEach(event => {
                         let eventText = '';
+                        const formattedDate = formatDate(event.timestamp);
                         if (event.action === 'PUSH') {
-                            eventText = `${event.author} pushed to ${event.to_branch} on ${new Date(event.timestamp).toUTCString()}`;
+                            eventText = `${event.author} pushed to ${event.to_branch} on ${formattedDate}`;
                         } else if (event.action === 'PULL_REQUEST') {
-                            eventText = `${event.author} submitted a pull request from ${event.from_branch} to ${event.to_branch} on ${new Date(event.timestamp).toUTCString()}`;
+                            eventText = `${event.author} submitted a pull request from ${event.from_branch} to ${event.to_branch} on ${formattedDate}`;
                         } else if (event.action === 'MERGE') {
-                            eventText = `${event.author} merged branch ${event.from_branch} to ${event.to_branch} on ${new Date(event.timestamp).toUTCString()}`;
+                            eventText = `${event.author} merged branch ${event.from_branch} to ${event.to_branch} on ${formattedDate}`;
                         }
                         const p = document.createElement('p');
                         p.className = 'event';
                         p.textContent = eventText;
                         eventDiv.appendChild(p);
                     });
+                })
+                .catch(error => {
+                    console.error('There was a problem with the fetch operation:', error);
+                    const eventDiv = document.getElementById('events');
+                    eventDiv.innerHTML = '<p>Error fetching events. Please try again later.</p>';
                 });
         }
+        
 
         // Poll every 15 seconds
         setInterval(fetchEvents, 15000);
